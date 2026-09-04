@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.Divider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -370,7 +371,7 @@ private fun SquadPanel(
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Cerrar") }
             }
-            HorizontalDivider()
+            Divider()
             Text("Miembros (${users.count { it.online }}/${users.size})", style = MaterialTheme.typography.labelMedium)
             LazyColumn {
                 items(users) { user ->
@@ -406,7 +407,7 @@ private fun SquadPanel(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HorizontalDivider()
+            Divider()
             Text("Objetivos", style = MaterialTheme.typography.titleSmall)
             LazyColumn {
                 items(objectives) { obj ->
