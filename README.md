@@ -70,6 +70,7 @@ airsoft-tracker/
 ## 📖 Documentación
 
 - [📦 Despliegue del backend (free/barato)](docs/DEPLOY.md)
+- [⚡ Deploy rápido en Belmo (gratis, sin tarjeta, siempre activo)](docs/DEPLOY-BELMO.md)
 - [🔌 API REST + WebSocket](docs/API.md)
 
 ## 🚀 Primeros pasos
