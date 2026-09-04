@@ -1,11 +1,11 @@
 package com.airsoft.tracker.presentation.screens
 
 import android.Manifest
-import android.location.Location
+import android.content.Context
+import android.graphics.Color
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,43 +13,53 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.AddLocation
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material3.*
-import androidx.compose.material3.Divider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airsoft.tracker.data.model.AreaDto
 import com.airsoft.tracker.data.model.ObjectiveDto
 import com.airsoft.tracker.data.model.UserDto
+import com.airsoft.tracker.presentation.AuthState
 import com.airsoft.tracker.presentation.MainViewModel
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.CircleOptions
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.PolygonOptions
-import com.google.maps.android.compose.*
-import kotlinx.coroutines.delay
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonPrimitive
+import org.maplibre.android.MapLibre
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.FillLayer
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.Point
+import org.maplibre.geojson.Polygon
+import org.json.JSONArray
 
 /**
- * Pantalla principal: mapa táctico en tiempo real.
+ * Pantalla principal: mapa táctico en tiempo real con MapLibre + OpenFreeMap.
+ * CERO coste, CERO API keys, CERO cuenta (solo la URL pública de OpenFreeMap).
+ *
  * Muestra:
  *  - Marcadores de compañeros con nombre y color
- *  - Mi propia posición
- *  - Objetivos/waypoints
- *  - Áreas de colores (círculos/polígonos)
- *  - Panel de control + chat + lista de escuadrón
+ *  - Objetivos/waypoints con estado (pendiente / ✅)
+ *  - Áreas de colores (polígonos)
+ *  - Panel de escuadrón + creación de objetivos
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMapsComposeApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
     val context = LocalContext.current
@@ -59,16 +69,11 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
     val connected by viewModel.connected.collectAsStateWithLifecycle()
     val trackingActive by viewModel.trackingActive.collectAsStateWithLifecycle()
     val myNick by viewModel.myNick.collectAsStateWithLifecycle()
-
-    val cameraPositionState = rememberCameraPositionState {
-        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(
-            LatLng(8.9824, -79.5199), 16f // Panamá por defecto
-        )
-    }
+    val squadCode = (viewModel.authState.value as? AuthState.Success)?.squadCode ?: ""
 
     var showPanel by remember { mutableStateOf(false) }
     var showAddObjective by remember { mutableStateOf(false) }
-    var myLocation by remember { mutableStateOf<LatLng?>(null) }
+    var lastTapLocation by remember { mutableStateOf<LatLng?>(null) }
 
     // Permiso de ubicación
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -91,65 +96,46 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
         }
     }
 
-    // Polígono: permitir toque en mapa para crear objetivo
-    var pendingObjective by remember { mutableStateOf<LatLng?>(null) }
-
     Box(Modifier.fillMaxSize()) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            onMapClick = { latLng ->
-                myLocation = latLng
-                cameraPositionState.animate(CameraUpdateFactory.newLatLng(latLng))
-            },
-            properties = MapProperties(
-                isMyLocationEnabled = true,
-                mapType = com.google.android.gms.maps.model.MapType.HYBRID,
-            ),
-            uiSettings = MapUiSettings(zoomControlsEnabled = true),
-        ) {
-            // Compañeros
-            users.forEach { user ->
-                val pos = user.lat?.let { lat -> user.lng?.let { lng -> LatLng(lat, lng) } }
-                if (pos != null && user.nick != myNick) {
-                    Marker(
-                        state = rememberMarkerState(position = pos),
-                        title = user.nick,
-                        snippet = "${user.speed?.let { "%.1f m/s".format(it) } ?: ""} ${if (!user.online) "(offline)" else ""}",
-                        icon = BitmapDescriptorFactory.defaultMarker(
-                            colorToHue(user.color)
-                        ),
-                    )
+        // MAPA MapLibre (tiles OpenFreeMap - sin API key, sin cuenta)
+        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        val mapMode = remember { MapLibreMapView(context) }
+
+        // MapLibre requiere los eventos del ciclo de vida del Activity
+        DisposableEffect(lifecycleOwner) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                when (event) {
+                    androidx.lifecycle.Lifecycle.Event.ON_CREATE -> mapMode.onCreate(null)
+                    androidx.lifecycle.Lifecycle.Event.ON_START -> mapMode.onStart()
+                    androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapMode.onResume()
+                    androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapMode.onPause()
+                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> mapMode.onStop()
+                    androidx.lifecycle.Lifecycle.Event.ON_DESTROY -> mapMode.onDestroy()
+                    else -> {}
                 }
             }
-            // Mi propio marcador mas grande
-            users.filter { it.nick == myNick }.forEach { user ->
-                val pos = user.lat?.let { lat -> user.lng?.let { lng -> LatLng(lat, lng) } }
-                if (pos != null) {
-                    Marker(
-                        state = rememberMarkerState(position = pos),
-                        title = "${user.nick} (YO)",
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                    )
-                }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                mapMode.onDestroy()
             }
-            // Objetivos
-            objectives.forEach { obj ->
-                Marker(
-                    state = rememberMarkerState(position = LatLng(obj.lat, obj.lng)),
-                    title = if (obj.completed == 1) "✅ ${obj.name}" else obj.name,
-                    snippet = obj.description,
-                    icon = BitmapDescriptorFactory.defaultMarker(
-                        if (obj.completed == 1) BitmapDescriptorFactory.HUE_GREEN
-                        else colorToHue(obj.color)
-                    ),
-                )
-            }
-            // Áreas
-            areas.forEach { area -> AreaOverlay(area) }
         }
 
-        // Top bar: estado de conexión + squad code
+        AndroidView(
+            factory = { mapMode },
+            update = { mapView ->
+                mapView.updateData(
+                    users = users,
+                    objectives = objectives,
+                    areas = areas,
+                    myNick = myNick,
+                    onMapTap = { latLng -> lastTapLocation = latLng },
+                )
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        // Top bar: estado de conexión + sala
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -167,7 +153,7 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
                     Modifier
                         .size(10.dp)
                         .background(
-                            if (connected) Color(0xFF4CAF50) else Color(0xFFF44336),
+                            if (connected) ComposeColor(0xFF4CAF50) else ComposeColor(0xFFF44336),
                             CircleShape
                         )
                 )
@@ -178,27 +164,27 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    "SALA ${viewModel.authState.value.let { if (it is com.airsoft.tracker.presentation.AuthState.Success) it.squadCode else "" }}",
+                    "SALA $squadCode",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
 
-        // Panel de control flotante
+        // Botón detener tracking (solo si está activo)
         if (trackingActive) {
             FloatingActionButton(
                 onClick = { viewModel.stopTracking() },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
-                containerColor = Color(0xFFF44336),
+                containerColor = ComposeColor(0xFFF44336),
             ) {
                 Icon(Icons.Default.LocationOff, contentDescription = "Detener tracking")
             }
         }
 
-        // Botón panel inferior
+        // Botones inferiores
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -211,35 +197,24 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
                 containerColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(52.dp),
             ) {
-                Icon(Icons.Default.AddLocation, contentDescription = "Añadir objetivo", tint = Color.White)
+                Icon(Icons.Default.AddLocation, contentDescription = "Añadir objetivo", tint = ComposeColor.White)
             }
             FloatingActionButton(
                 onClick = { showPanel = !showPanel },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier.size(52.dp),
             ) {
-                Icon(Icons.Default.Group, contentDescription = "Escuadrón", tint = Color.Black)
-            }
-            FloatingActionButton(
-                onClick = {
-                    cameraPositionState.animate(
-                        CameraUpdateFactory.newLatLngZoom(myLocation ?: LatLng(8.9824, -79.5199), 16f)
-                    )
-                },
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                modifier = Modifier.size(52.dp),
-            ) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Centrar en mí", tint = Color.Black)
+                Icon(Icons.Default.Group, contentDescription = "Escuadrón", tint = ComposeColor.Black)
             }
         }
 
-        // Panel lateral derecha: escuadrón
+        // Panel del escuadrón
         if (showPanel) {
             SquadPanel(
                 users = users,
                 objectives = objectives,
                 onClose = { showPanel = false },
-                onComplete = { viewModel.completeObjective(it, true) },
+                onComplete = { id -> viewModel.completeObjective(id, true) },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .width(280.dp)
@@ -251,10 +226,10 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
         // Dialog añadir objetivo
         if (showAddObjective) {
             AddObjectiveDialog(
-                myLocation = myLocation,
+                lastTap = lastTapLocation,
                 onDismiss = { showAddObjective = false },
                 onAdd = { name, color, radius ->
-                    val pos = myLocation ?: LatLng(8.9824, -79.5199)
+                    val pos = lastTapLocation ?: LatLng(8.9824, -79.5199) // fallback: Panamá
                     viewModel.addObjective(name, pos.latitude, pos.longitude, color, radius)
                     showAddObjective = false
                 },
@@ -263,90 +238,185 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
     }
 }
 
-/** Dibuja un área de color (círculo o polígono) en el mapa */
-@Composable
-private fun AreaOverlay(area: AreaDto) {
-    val colorArgb = try {
-        android.graphics.Color.parseColor(area.color)
-    } catch (e: Exception) {
-        android.graphics.Color.GREEN
-    }
-    val fill = Color(colorArgb).copy(alpha = area.opacity.toFloat().coerceIn(0.1f, 0.9f)).toArgb()
+/**
+ * Envoltorio de MapView de MapLibre con capas tácticas.
+ * Lógica: 3 fuentes GeoJSON (usuarios, objetivos, áreas) que se actualizan in-place
+ * desde Compose (updateData) sin recargar el estilo.
+ */
+class MapLibreMapView(context: Context) : MapView(context) {
 
-    if (area.type == "circle") {
-        // El círculo se representa con 2+ puntos [lat,lng] - usamos el primero como centro y el segundo como radio aproximado
-        val coords = parseCoords(area.coordinates)
-        if (coords.size >= 2) {
-            val center = LatLng(coords[0].first, coords[0].second)
-            val edge = LatLng(coords[1].first, coords[1].second)
-            val radiusMeters = distanceMeters(center, edge).toDouble().coerceAtLeast(10.0)
-            Circle(
-                center = center,
-                radius = radiusMeters,
-                fillColor = fill,
-                strokeColor = Color(colorArgb).toArgb(),
-                strokeWidth = 2f,
-            )
+    private var mapReady = false
+    private var onTap: ((LatLng) -> Unit)? = null
+
+    private var usersSource: GeoJsonSource? = null
+    private var objectivesSource: GeoJsonSource? = null
+    private var areasSource: GeoJsonSource? = null
+
+    private var pendingUsers: List<UserDto> = emptyList()
+    private var pendingObjectives: List<ObjectiveDto> = emptyList()
+    private var pendingAreas: List<AreaDto> = emptyList()
+    private var pendingNick: String = ""
+
+    init {
+        MapLibre.getInstance(context)
+        getMapAsync { map ->
+            mapReady = true
+            map.addOnMapClickListener { latLng ->
+                onTap?.invoke(latLng)
+                true
+            }
+            map.setStyle(Style.Builder().fromUri(STYLE_URL)) { style ->
+                buildLayers(style)
+                updateAllLayers()
+            }
         }
-    } else {
-        val coords = parseCoords(area.coordinates)
-        if (coords.size >= 3) {
-            Polygon(
-                points = coords.map { LatLng(it.first, it.second) },
-                fillColor = fill,
-                strokeColor = Color(colorArgb).toArgb(),
-                strokeWidth = 2f,
+    }
+
+    private fun buildLayers(style: Style) {
+        // --- Usuarios: círculos de color + etiquetas de nombre ---
+        val srcUsers = GeoJsonSource("users", FeatureCollection.fromFeatures(emptyList()))
+        style.addSource(srcUsers)
+        style.addLayer(CircleLayer("users-circles", "users").withProperties(
+            PropertyFactory.circleColor(Expression.get("color")),
+            PropertyFactory.circleRadius(5.5f),
+            PropertyFactory.circleStrokeColor(Expression.get("stroke")),
+            PropertyFactory.circleStrokeWidth(1.8f),
+        ))
+        style.addLayer(SymbolLayer("users-labels", "users").withProperties(
+            PropertyFactory.textField(Expression.get("name")),
+            PropertyFactory.textSize(11f),
+            PropertyFactory.textColor("#FFFFFF"),
+            PropertyFactory.textHaloColor("#000000"),
+            PropertyFactory.textHaloWidth(1.2f),
+            PropertyFactory.textOffset(arrayOf(0f, 1.4f)),
+            PropertyFactory.textAllowOverlap(true),
+            PropertyFactory.textIgnorePlacement(false),
+        ))
+        usersSource = srcUsers
+
+        // --- Objetivos: círculos + etiquetas ---
+        val srcObjectives = GeoJsonSource("objectives", FeatureCollection.fromFeatures(emptyList()))
+        style.addSource(srcObjectives)
+        style.addLayer(CircleLayer("objectives-circles", "objectives").withProperties(
+            PropertyFactory.circleColor(Expression.get("color")),
+            PropertyFactory.circleRadius(8f),
+            PropertyFactory.circleStrokeColor("#000000"),
+            PropertyFactory.circleStrokeWidth(2f),
+        ))
+        style.addLayer(SymbolLayer("objectives-labels", "objectives").withProperties(
+            PropertyFactory.textField(Expression.get("name")),
+            PropertyFactory.textSize(12f),
+            PropertyFactory.textColor("#FFFFFF"),
+            PropertyFactory.textHaloColor("#000000"),
+            PropertyFactory.textHaloWidth(1.2f),
+            PropertyFactory.textOffset(arrayOf(0f, 1.5f)),
+            PropertyFactory.textAllowOverlap(true),
+            PropertyFactory.textIgnorePlacement(false),
+        ))
+        objectivesSource = srcObjectives
+
+        // --- Áreas: relleno translúcido + borde ---
+        val srcAreas = GeoJsonSource("areas", FeatureCollection.fromFeatures(emptyList()))
+        style.addSource(srcAreas)
+        style.addLayer(FillLayer("areas-fill", "areas").withProperties(
+            PropertyFactory.fillColor(Expression.get("color")),
+            PropertyFactory.fillOpacity(Expression.get("opacity")),
+        ))
+        style.addLayer(LineLayer("areas-outline", "areas").withProperties(
+            PropertyFactory.lineColor(Expression.get("color")),
+            PropertyFactory.lineWidth(2f),
+        ))
+        areasSource = srcAreas
+    }
+
+    /** Desde Compose: refresca datos + registrar tap */
+    fun updateData(
+        users: List<UserDto>,
+        objectives: List<ObjectiveDto>,
+        areas: List<AreaDto>,
+        myNick: String,
+        onMapTap: (LatLng) -> Unit,
+    ) {
+        onTap = onMapTap
+        pendingUsers = users
+        pendingObjectives = objectives
+        pendingAreas = areas
+        pendingNick = myNick
+        updateAllLayers()
+    }
+
+    private fun updateAllLayers() {
+        if (!mapReady) return
+        usersSource?.setGeoJson(buildUsersGeoJson(pendingUsers, pendingNick))
+        objectivesSource?.setGeoJson(buildObjectivesGeoJson(pendingObjectives))
+        areasSource?.setGeoJson(buildAreasGeoJson(pendingAreas))
+    }
+
+    // --- GeoJSON builders ---
+
+    private fun buildUsersGeoJson(users: List<UserDto>, myNick: String): String {
+        val features = users.filter { it.lat != null && it.lng != null }.map { user ->
+            val f = Feature.fromGeometry(Point.fromLngLat(user.lng!!, user.lat!!))
+            f.addStringProperty("name", if (user.nick == myNick) "${user.nick} (YO)" else user.nick)
+            f.addStringProperty("color", parseHexColor(user.color, "#4CAF50"))
+            f.addStringProperty("stroke", if (user.nick == myNick) "#2196F3" else "#000000")
+            f
+        }
+        return FeatureCollection.fromFeatures(features).toJson()
+    }
+
+    private fun buildObjectivesGeoJson(objectives: List<ObjectiveDto>): String {
+        val features = objectives.map { obj ->
+            val f = Feature.fromGeometry(Point.fromLngLat(obj.lng, obj.lat))
+            f.addStringProperty("name", if (obj.completed == 1) "✅ ${obj.name}" else obj.name)
+            f.addStringProperty(
+                "color",
+                if (obj.completed == 1) "#4CAF50" else parseHexColor(obj.color, "#FF0000")
             )
+            f
+        }
+        return FeatureCollection.fromFeatures(features).toJson()
+    }
+
+    private fun buildAreasGeoJson(areas: List<AreaDto>): String {
+        val features = areas.mapNotNull { area ->
+            val coords = parseCoords(area.coordinates)
+            if (coords.size < 3) return@mapNotNull null
+            val ring = coords.map { Point.fromLngLat(it.second, it.first) } +
+                Point.fromLngLat(coords[0].second, coords[0].first)
+            val f = Feature.fromGeometry(Polygon.fromLngLats(listOf(ring)))
+            f.addStringProperty("color", parseHexColor(area.color, "#00FF00"))
+            f.addNumberProperty("opacity", area.opacity.toFloat().coerceIn(0.1f, 0.9f))
+            f
+        }
+        return FeatureCollection.fromFeatures(features).toJson()
+    }
+
+    companion object {
+        /** Tiles vectoriales gratuitos: OpenFreeMap (sin registro, sin límites, sin API key) */
+        private const val STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+
+        private fun parseHexColor(hex: String, fallback: String): String = try {
+            val c = Color.parseColor(hex)
+            String.format("#%06X", 0xFFFFFF and c)
+        } catch (e: Exception) {
+            fallback
         }
     }
 }
 
-/** Parsear coordenadas JSON: [[lat,lng],...] */
+/** Parsear [[lat,lng],...] (JSON de AreaDto.coordinates) usando org.json (sin dependencias) */
 private fun parseCoords(jsonStr: String): List<Pair<Double, Double>> {
     return try {
-        val json = Json { ignoreUnknownKeys = true }
-        val arr = json.parseToJsonElement(jsonStr).jsonArray
-        arr.mapNotNull { elem ->
-            val pair = elem.jsonArray
-            if (pair.size >= 2) {
-                Pair(pair[0].jsonPrimitive.content.toDouble(), pair[1].jsonPrimitive.content.toDouble())
+        val arr = JSONArray(jsonStr)
+        (0 until arr.length()).mapNotNull { i ->
+            val pair = arr.optJSONArray(i) ?: return@mapNotNull null
+            if (pair.length() >= 2) {
+                Pair(pair.getDouble(0), pair.getDouble(1))
             } else null
         }
     } catch (e: Exception) {
         emptyList()
-    }
-}
-
-/** Haversine: distancia en metros entre dos LatLng */
-private fun distanceMeters(a: LatLng, b: LatLng): Double {
-    val r = 6371000.0
-    val dLat = Math.toRadians(b.latitude - a.latitude)
-    val dLng = Math.toRadians(b.longitude - a.longitude)
-    val h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(Math.toRadians(a.latitude)) * Math.cos(Math.toRadians(b.latitude)) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2)
-    return 2 * r * Math.asin(Math.sqrt(h))
-}
-
-/** Convertir color hex a hue para defaultMarker */
-private fun colorToHue(hex: String): Float {
-    return try {
-        val color = android.graphics.Color.parseColor(hex)
-        val r = android.graphics.Color.red(color) / 255f
-        val g = android.graphics.Color.green(color) / 255f
-        val b = android.graphics.Color.blue(color) / 255f
-        val max = maxOf(r, g, b)
-        val min = minOf(r, g, b)
-        val d = max - min
-        var h = when (max) {
-            r -> ((g - b) / d * 60 + 360) % 360
-            g -> ((b - r) / d * 60 + 120) % 360
-            else -> ((r - g) / d * 60 + 240) % 360
-        }
-        if (d == 0f) h = 0f
-        h / 360f * 360f
-    } catch (e: Exception) {
-        BitmapDescriptorFactory.HUE_RED
     }
 }
 
@@ -361,18 +431,25 @@ private fun SquadPanel(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(startStart = 16.dp, bottomStart = 16.dp),
+        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
         tonalElevation = 5.dp,
         color = MaterialTheme.colorScheme.surface,
     ) {
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ESCUADRÓN", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text(
+                    "ESCUADRÓN",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Cerrar") }
             }
             Divider()
-            Text("Miembros (${users.count { it.online }}/${users.size})", style = MaterialTheme.typography.labelMedium)
+            Text(
+                "Miembros (${users.count { it.online }}/${users.size})",
+                style = MaterialTheme.typography.labelMedium,
+            )
             LazyColumn {
                 items(users) { user ->
                     Row(
@@ -386,8 +463,10 @@ private fun SquadPanel(
                                 .size(12.dp)
                                 .background(
                                     try {
-                                        Color(android.graphics.Color.parseColor(user.color))
-                                    } catch (e: Exception) { Color.Gray },
+                                        ComposeColor(Color.parseColor(user.color))
+                                    } catch (e: Exception) {
+                                        ComposeColor.Gray
+                                    },
                                     CircleShape
                                 )
                         )
@@ -396,12 +475,12 @@ private fun SquadPanel(
                         Spacer(Modifier.weight(1f))
                         if (user.online) {
                             Text(
-                                "${user.speed?.let { "%.0f m/s".format(it) } ?: ""}",
+                                user.speed?.let { "%.0f m/s".format(it) } ?: "",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
-                            Text("offline", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text("offline", style = MaterialTheme.typography.labelSmall, color = ComposeColor.Gray)
                         }
                     }
                 }
@@ -431,11 +510,11 @@ private fun SquadPanel(
     }
 }
 
-/** Dialog para crear objetivo */
+/** Dialog para crear objetivo manualmente */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddObjectiveDialog(
-    myLocation: LatLng?,
+    lastTap: LatLng?,
     onDismiss: () -> Unit,
     onAdd: (name: String, color: String, radius: Int) -> Unit,
 ) {
@@ -448,8 +527,8 @@ private fun AddObjectiveDialog(
         text = {
             Column {
                 Text(
-                    "Posición: ${myLocation?.latitude?.let { "%.5f".format(it) } ?: "?"}, " +
-                    "${myLocation?.longitude?.let { "%.5f".format(it) } ?: "?"}",
+                    "Posición: ${lastTap?.latitude?.let { "%.5f".format(it) } ?: "?"}, " +
+                        "${lastTap?.longitude?.let { "%.5f".format(it) } ?: "?"}",
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Spacer(Modifier.height(12.dp))

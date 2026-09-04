@@ -23,6 +23,9 @@
 -dontwarn retrofit2.**
 -keep class retrofit2.** { *; }
 
-# Google Maps
--keep class com.google.android.gms.maps.** { *; }
--keep class com.google.maps.android.** { *; }
+# Google Play Services (Location)
+-keep class com.google.android.gms.location.** { *; }
+
+# MapLibre (mapa offline/tiles)
+-dontwarn org.maplibre.**
+-keep class org.maplibre.** { *; }

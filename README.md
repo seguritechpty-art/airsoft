@@ -7,7 +7,7 @@ Sabe dónde está cada compañero del escuadrón en todo momento, con objetivos,
 ┌───────────────────────────────┐         ┌───────────────────────────────┐
 │        ANDROID APP            │         │         BACKEND              │
 │  Kotlin + Jetpack Compose     │◄───────►│  Node.js + Socket.IO         │
-│  Google Maps + GPS Service    │ WebSocket│  SQLite (auto-contenido)     │
+│  MapLibre + OpenFreeMap ($0)   │ WebSocket│  SQLite (auto-contenido)     │
 │  Android 7.0+ (API 24)        │   +REST │  Desplegable en hosting free │
 └───────────────────────────────┘         └───────────────────────────────┘
 ```
@@ -17,7 +17,7 @@ Sabe dónde está cada compañero del escuadrón en todo momento, con objetivos,
 | Feature | Descripción |
 |---|---|
 | 📍 **Tracking en tiempo real** | GPS cada 5s, posiciones de todo el escuadrón sin lag |
-| 🗺️ **Mapa táctico** | Google Maps híbrido, marcadores con nombre/color/velocidad |
+| 🗺️ **Mapa táctico** | MapLibre + OpenFreeMap (tiles vectoriales gratis), marcadores con nombre/color/velocidad |
 | 🎯 **Objetivos** | Crear waypoints tocando el mapa, radio de alerta, completar |
 | 🔵 **Áreas de colores** | Círculos y polígonos sobre el mapa para marcar zonas |
 | 💬 **Chat** | Comunicación de escuadrón incluida |
@@ -55,7 +55,7 @@ airsoft-tracker/
 
 **Android**
 - Kotlin 1.9 + Jetpack Compose (Material 3)
-- Google Maps SDK + Maps Compose
+- **MapLibre Native** + **OpenFreeMap** (100% gratis, sin API key, sin cuenta, sin límites)
 - Socket.IO client (WebSocket con fallback polling)
 - Retrofit/OkHttp (REST)
 - Foreground Service con FusedLocationProviderClient
@@ -95,17 +95,16 @@ Requisitos:
 - JDK 17
 - Android SDK 34
 
-### 3. Configurar Google Maps API Key
+### 3. Configurar el mapa
 
-1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
-2. Crea un proyecto y habilita **Maps SDK for Android**
-3. Genera una API Key
-4. Ponla en `android/app/src/main/res/values/` o directamente en el Manifest:
-   ```xml
-   <meta-data
-       android:name="com.google.android.geo.API_KEY"
-       android:value="TU_API_KEY_AQUI" />
-   ```
+**Nada que hacer.** La app usa **OpenFreeMap** (tiles vectoriales de OpenStreetMap) servidos desde su endpoint público:
+`https://tiles.openfreemap.org/styles/liberty`
+
+- ✅ Gratis para siempre (sin límites de peticiones)
+- ✅ Sin registro, sin API key, sin tarjeta de crédito
+- ✅ Atribución de OpenStreetMap incluida automáticamente
+
+Solo necesitas internet en el dispositivo. Si quisieras usar tu propio servidor de tiles, edita `STYLE_URL` en `MapScreen.kt`.
 
 ### 4. Configurar la URL del backend
 
@@ -129,6 +128,10 @@ cd android
 ./gradlew assembleDebug
 # APK en: android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+> 💡 **Nota de red**: MapLibre cargará los tiles de OpenFreeMap desde internet.
+> En un campo con poca cobertura, la app **cachea tiles** automáticamente, así que
+> las zonas ya vistas siguen siendo visibles sin conexión.
 
 ## 🎮 Flujo de uso en partida
 

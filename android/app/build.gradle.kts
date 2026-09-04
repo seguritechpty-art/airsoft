@@ -17,10 +17,6 @@ android {
 
         // URL del backend - se sobreescribe en release o debug
         buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("API_BASE_URL") ?: "http://10.0.2.2:3000"}\"")
-
-        // API Key de Google Maps (se define en android/gradle.properties → MAPS_API_KEY)
-        manifestPlaceholders["MAPS_API_KEY"] =
-            (project.findProperty("MAPS_API_KEY") ?: "TU_API_KEY_GOOGLE_MAPS") as String
     }
 
     buildTypes {
@@ -57,6 +53,7 @@ android {
 dependencies {
     // Core
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-service:2.7.0")
@@ -71,10 +68,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.6")
 
-    // Google Maps
-    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    // Mapas: MapLibre Native (open source) + OpenFreeMap (tiles gratis, sin API key)
+    implementation("org.maplibre.gl:android-sdk:11.3.0")
     implementation("com.google.android.gms:play-services-location:21.1.0")
-    implementation("com.google.maps.android:maps-compose:4.3.0")
 
     // Red
     implementation("com.squareup.retrofit2:retrofit:2.10.0")

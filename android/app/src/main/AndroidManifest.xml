@@ -31,10 +31,7 @@
         android:theme="@style/Theme.AirsoftTracker"
         tools:targetApi="34">
 
-        <!-- API Key de Google Maps (se inyecta desde gradle.properties → MAPS_API_KEY) -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
+        <!-- MapLibre renderiza tiles vía red; el permiso INTERNET ya está declarado -->
 
         <activity
             android:name=".MainActivity"
