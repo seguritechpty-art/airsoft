@@ -16,42 +16,38 @@ Belmo es la única plataforma PaaS que en 2026 ofrece **1 servicio Node.js siemp
 
 ## 🚀 Pasos exactos
 
+> ✅ **Actualizado**: el repo ahora está preparado para desplegar en Belmo con la config MÍNIMA.
+> Ya NO hay `Dockerfile` en `backend/` (Belmo Starter/free NO soporta Dockerfile builds, por eso
+> fallaba: si detecta un Dockerfile en la raíz configurada, intenta Docker y el plan free lo rechaza).
+> Los archivos de Docker se movieron a `deploy/` (solo para deploy local/Oracle).
+
 ### 1. Ir a Belmo
-Abre **[belmo.io](https://belmo.io)** y pulsa **Join / Early access** (o el botón de GitHub) para conectarte.
+Abre **[belmo.io](https://belmo.io)** o directo **dashboard.belmo.io** y entra a tu cuenta (ya autorizada).
 
-### 2. Conectar cuenta de GitHub
-Autoriza a Belmo (GitHub App) para que pueda leer tus repos y desplegar.
+### 2. Crear/editar el servicio (tipo **API / Web Service**)
+- **Repo**: `airsoft`
+- **Branch**: `main`
+- **Root Directory**: usa **`backend/`** (recomendado, es donde vive el código). 
+  *Alternativa:* ahora hay `package.json` en la raíz, así que `./` también sirve.
+- **Build Command**: *(vacío)* → Belmo hace `npm install`
+- **Start Command**: *(vacío)* → Belmo usa `npm start` (= `node server.js`)
+- **Health Check Path**: `/health`
+- **Auto-Deploy**: ON
 
-### 3. Crear el servicio
-- **Connect a GitHub repo** → elige `airsoft` (tu repo).
-- Elige la **rama `main`**, y por defecto la carpeta raíz.
-  - ⚠️ **Importante:** tu código está en la subcarpeta `backend/`. Si Belmo no detecta el `package.json` por estar anidado, selecciona **la carpeta `backend/`** como raíz del build/root directory.
-- **Framework auto-detectado:** Express/Node → `npm install` + `node server.js`.
+### 3. Variables de entorno (opcional)
+| Variable | Valor |
+|---|---|
+| `NODE_ENV` | `production` |
 
-### 4. Editar variables de entorno (si pidiera)
-Belmo inyecta `PORT` automáticamente. Opcional:
-| Variable | Valor | Nota |
-|---|---|---|
-| `DB_PATH` | (vacío) | Por defecto usa `./data.db` junto al server |
-| `NODE_ENV` | `production` | Opcional |
+### 4. Deploy
+Pulsa **Deploy**. En 2-4 min:
+- URL: `https://TU-SERVICIO.app.belmo.io` (Starter: wildcard subdomain)
+- SSL automático, **no duerme nunca**
 
-### 5. Deploy
-Pulsa **Deploy**. En 2-4 min verás:
-- URL HTTPS: `https://tuNombre.onbelmo.app` (o similar)
-- Certificado SSL automático
-- **Sin sleep**: el proceso queda corriendo 24/7
-
-### 6. Verificar
+### 5. Verificar
 ```bash
-# Health check (debe responder {"status":"ok"})
-curl https://tuNombre.onbelmo.app/health
-
-# (Opcional) Crear una sala de prueba
-curl -X POST https://tuNombre.onbelmo.app/api/squad/create \
-  -H "Content-Type: application/json" \
-  -d '{"nick":"test"}'
+curl https://TU-SERVICIO.app.belmo.io/health   # → {"status":"ok",...}
 ```
-Debe devolver un `squadCode`.
 
 ---
 
