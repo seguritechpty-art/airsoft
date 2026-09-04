@@ -2,7 +2,7 @@
  * AIRSOFT TRACKER - BACKEND
  * Servidor táctico para coordinar escuadrones en partidas de Airsoft/MilSim.
  *
- * Stack: Node.js + Express + Socket.IO + SQLite (better-sqlite3).
+ * Stack: Node.js + Express + Socket.IO + SQLite (node:sqlite nativo).
  * Sin dependencias externas de infra: corre en cualquier VPS/hosting free.
  *
  * Funcionalidades:

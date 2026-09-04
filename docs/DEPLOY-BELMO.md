@@ -72,7 +72,7 @@ Socket.IO detecta automáticamente el `https` → usa `wss://` (WebSocket seguro
 
 1. **Carpeta raíz del build:** Si Belmo usa la raíz del repo y no encuentra `package.json` (está en `backend/`), el deploy fallará con "no package.json". Solución: indicar **Root Directory = `backend/`** en la config del servicio.
 
-2. **better-sqlite3 (dependencia nativa):** se compila durante `npm install`. Belmo soporta build tools estándar de Node. Si falla la compilación, lo más común es que falte `build-essential`/`python`; avísame y ajustamos.
+2. **SQLite nativo (node:sqlite):** el backend usa el motor SQLite integrado en Node 22.5+ (`node:sqlite`), **sin dependencias nativas que compilar**. `npm install` solo instala paquetes JS puros → el build de Belmo no puede fallar por binarios. Si Belmo desplegara con un Node < 22.5, el server arrancaría en modo memoria (también funciona).
 
 3. **SQLite en disco efímero:** el backend guarda partidas en `data.db` local. Si Belmo reinicia el contenedor, se pierden las partidas activas (normal para un MVP; no es un problema real para uso en partidas). Para persistir datos reales habría que usar un volumen/Belmo managed DB (de pago) — no necesario ahora.
 

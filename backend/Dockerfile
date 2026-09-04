@@ -1,10 +1,10 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
+# node:sqlite es nativo de Node 22.5+ → no hay compilación, solo npm install
 COPY package*.json ./
-# better-sqlite3 necesita compilación nativa; en alpine instalamos toolchain
-RUN apk add --no-cache python3 make g++ && npm install --omit=dev
+RUN npm install --omit=dev
 
 COPY . .
 

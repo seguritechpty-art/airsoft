@@ -63,7 +63,7 @@ airsoft-tracker/
 
 **Backend**
 - Node.js 18+ + Express + Socket.IO
-- SQLite (better-sqlite3) — **cero dependencias de infraestructura**
+- SQLite nativo **node:sqlite** (Node 22.5+) — **cero dependencias de infraestructura ni compilación**
 - Helmet, CORS, rate-limiting, validación de entrada
 - Modo memoria automático si SQLite no está disponible
 
