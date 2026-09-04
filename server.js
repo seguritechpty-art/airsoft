@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'airsoft.db');
 
 // ---------------------------------------------------------------------------
 // BASE DE DATOS (SQLite auto-contenido)
@@ -37,6 +37,7 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.db');
 // ---------------------------------------------------------------------------
 let db;
 try {
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   const { DatabaseSync } = await import('node:sqlite');
   db = new DatabaseSync(DB_PATH);
   db.exec('PRAGMA journal_mode = WAL');

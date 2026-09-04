@@ -44,10 +44,9 @@ airsoft-tracker/
 │           ├── MainViewModel.kt      # Estado + lógica
 │           ├── screens/              # LoginScreen, MapScreen
 │           └── theme/Theme.kt
-├── backend/                  # Servidor (Node.js + Socket.IO + SQLite)
-│   ├── server.js             # Todo el backend en un archivo
-│   ├── Dockerfile            # Deploy en cualquier VPS/hosting
-│   └── docker-compose.yml
+├── server.js                 # TODO el backend (Node + Express + Socket.IO + node:sqlite)
+├── package.json              # Dependencias del servidor (raíz → deploy simple en PaaS)
+├── deploy/                   # Dockerfile + docker-compose (deploy alternativo)
 └── docs/                     # Documentación
 ```
 
@@ -78,9 +77,8 @@ airsoft-tracker/
 ### 1. Levantar el backend (local)
 
 ```bash
-cd backend
-npm install
-node server.js
+npm install        # instala dependencias (raíz del repo)
+npm start          # → node server.js
 # Health check: http://localhost:3000/health
 ```
 
