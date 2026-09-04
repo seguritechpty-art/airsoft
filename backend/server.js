@@ -21,7 +21,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
-import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,11 +31,15 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.db');
 
 // ---------------------------------------------------------------------------
 // BASE DE DATOS (SQLite auto-contenido)
+// Usamos node:sqlite (nativo de Node 22+, SIN compilar binarios) para que el
+// deploy funcione en cualquier PaaS sin build tools. Si el runtime no lo trae,
+// caemos a modo memoria: el server sigue funcionando con salas efímeras.
 // ---------------------------------------------------------------------------
 let db;
 try {
-  db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
+  const { DatabaseSync } = await import('node:sqlite');
+  db = new DatabaseSync(DB_PATH);
+  db.exec('PRAGMA journal_mode = WAL');
   db.exec(`
     CREATE TABLE IF NOT EXISTS squads (
       code TEXT PRIMARY KEY,
@@ -90,9 +93,9 @@ try {
       created_at INTEGER NOT NULL
     );
   `);
-  console.log('[DB] SQLite inicializado en', DB_PATH);
+  console.log('[DB] SQLite nativo inicializado en', DB_PATH);
 } catch (err) {
-  console.warn('[DB] SQLite no disponible, usando modo memoria:', err.message);
+  console.warn('[DB] SQLite nativo no disponible, usando modo memoria:', err.message);
   db = null;
 }
 
