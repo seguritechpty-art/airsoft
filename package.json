@@ -1,11 +1,20 @@
 {
   "name": "airsoft-tracker",
   "version": "1.0.0",
-  "description": "Monorepo Airsoft Tracker - el servicio desplegable vive en backend/",
+  "description": "Airsoft Tracker backend - Node.js + Express + Socket.IO + node:sqlite",
   "private": true,
+  "type": "module",
+  "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
-    "install-backend": "cd backend && npm install"
+    "dev": "node --watch backend/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.1.0",
+    "socket.io": "^4.7.5"
   },
   "engines": {
     "node": ">=22.5"
