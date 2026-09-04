@@ -1,0 +1,20 @@
+# Gradle / Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/captures/
+
+# Backend
+backend/node_modules/
+backend/data/
+backend/data.db
+backend/data.db-*
+backend/.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

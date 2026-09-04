@@ -1,0 +1,13 @@
+# Despliegue LOCAL con Docker (o en cualquier VPS con Docker)
+# backend + volumen persistente para SQLite
+services:
+  backend:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/data.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
