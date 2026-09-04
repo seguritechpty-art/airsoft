@@ -69,8 +69,8 @@ class SocketManager {
             newSocket.emit("squad:auth", JSONObject().apply {
                 put("nick", nick)
                 put("squadCode", squadCode)
-            }) { ack ->
-                val ok = (ack as? JSONObject)?.optBoolean("ok") ?: false
+            }) { ackArgs ->
+                val ok = (ackArgs.firstOrNull() as? JSONObject)?.optBoolean("ok") ?: false
                 onReady(ok)
             }
         }
