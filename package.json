@@ -1,0 +1,13 @@
+{
+  "name": "airsoft-tracker",
+  "version": "1.0.0",
+  "description": "Monorepo Airsoft Tracker - el servicio desplegable vive en backend/",
+  "private": true,
+  "scripts": {
+    "start": "node backend/server.js",
+    "install-backend": "cd backend && npm install"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}
