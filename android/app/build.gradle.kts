@@ -17,6 +17,10 @@ android {
 
         // URL del backend - se sobreescribe en release o debug
         buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("API_BASE_URL") ?: "http://10.0.2.2:3000"}\"")
+
+        // API Key de Google Maps (se define en android/gradle.properties → MAPS_API_KEY)
+        manifestPlaceholders["MAPS_API_KEY"] =
+            (project.findProperty("MAPS_API_KEY") ?: "TU_API_KEY_GOOGLE_MAPS") as String
     }
 
     buildTypes {
