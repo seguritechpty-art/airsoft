@@ -18,3 +18,5 @@ data.db-*
 # OS
 .DS_Store
 Thumbs.db
+# APK (compilación local, no versionar)
+*.apk
