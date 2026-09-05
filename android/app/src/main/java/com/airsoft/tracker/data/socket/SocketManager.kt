@@ -5,6 +5,7 @@ import com.airsoft.tracker.data.model.AreaDto
 import com.airsoft.tracker.data.model.ChatMessageDto
 import com.airsoft.tracker.data.model.ObjectiveDto
 import com.airsoft.tracker.data.model.UserDto
+import io.socket.client.Ack
 import io.socket.client.IO
 import io.socket.client.Socket
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,13 +67,13 @@ class SocketManager {
             _connected.value = true
             _lastError.value = null
             // Autenticar en la sala vía WebSocket
-            newSocket.emit("squad:auth", JSONObject().apply {
+            newSocket.emit("squad:auth", arrayOf(JSONObject().apply {
                 put("nick", nick)
                 put("squadCode", squadCode)
-            }) { ackArgs ->
+            }), Ack { ackArgs ->
                 val ok = (ackArgs.firstOrNull() as? JSONObject)?.optBoolean("ok") ?: false
                 onReady(ok)
-            }
+            })
         }
 
         newSocket.on(Socket.EVENT_DISCONNECT) {
@@ -190,12 +191,12 @@ class SocketManager {
         nick = json.optString("nick"),
         color = json.optString("color", "#4CAF50"),
         online = json.optBoolean("online"),
-        lat = json.optIfPresent("lat")?.toDouble(),
-        lng = json.optIfPresent("lng")?.toDouble(),
-        heading = json.optIfPresent("heading")?.toDouble(),
-        speed = json.optIfPresent("speed")?.toDouble(),
-        accuracy = json.optIfPresent("accuracy")?.toDouble(),
-        updated_at = json.optIfPresent("updated_at")?.toLong(),
+        lat = json.optDoubleOrNull("lat"),
+        lng = json.optDoubleOrNull("lng"),
+        heading = json.optDoubleOrNull("heading"),
+        speed = json.optDoubleOrNull("speed"),
+        accuracy = json.optDoubleOrNull("accuracy"),
+        updated_at = json.optLongOrNull("updated_at"),
     )
 
     private fun parseUsers(arr: JSONArray): List<UserDto> =
@@ -235,6 +236,9 @@ class SocketManager {
         created_at = optLong("created_at"),
     )
 
-    private fun JSONObject.optIfPresent(key: String): Any? =
-        if (isNull(key)) null else opt(key)
+    private fun JSONObject.optDoubleOrNull(key: String): Double? =
+        if (isNull(key)) null else (opt(key) as? Number)?.toDouble()
+
+    private fun JSONObject.optLongOrNull(key: String): Long? =
+        if (isNull(key)) null else (opt(key) as? Number)?.toLong()
 }

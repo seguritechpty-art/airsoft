@@ -98,7 +98,7 @@ fun MapScreen(viewModel: MainViewModel, onExit: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         // MAPA MapLibre (tiles OpenFreeMap - sin API key, sin cuenta)
-        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
         val mapMode = remember { MapLibreMapView(context) }
 
         // MapLibre requiere los eventos del ciclo de vida del Activity
